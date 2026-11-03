@@ -7,6 +7,7 @@ use Exception;
 use codename\parquet\ParquetReader;
 use codename\parquet\ParquetWriter;
 use codename\parquet\CompressionMethod;
+use codename\parquet\format\CompressionCodec;
 
 use codename\parquet\data\Schema;
 use codename\parquet\data\DataField;
@@ -306,7 +307,8 @@ final class ParquetWriterTest extends TestBase
     $name = DataField::createFromType('name', 'string');
 
     //write with zstd compression
-    $writer = new ParquetWriter(new Schema([$id, $name]), $ms, null, false, CompressionMethod::Zstd);
+    $writer = new ParquetWriter(new Schema([$id, $name]), $ms);
+    $writer->compressionMethod = CompressionMethod::Zstd;
 
     $rg = $writer->CreateRowGroup();
     $rg->WriteColumn(new DataColumn($id, [ 1, 2, 3, 4 ]));
@@ -323,6 +325,7 @@ final class ParquetWriterTest extends TestBase
     //read back
     fseek($ms, 0);
     $reader = new ParquetReader($ms);
+    $this->assertEquals(CompressionCodec::ZSTD, $reader->getThriftMetadata()->row_groups[0]->columns[0]->meta_data->codec);
     $this->assertEquals(6, $reader->getThriftMetadata()->num_rows);
 
     $rg = $reader->OpenRowGroupReader(0);
@@ -344,7 +347,8 @@ final class ParquetWriterTest extends TestBase
     $id = DataField::createFromType('id', 'integer');
     $ms = fopen('php://memory', 'r+');
 
-    $writer = new ParquetWriter(new Schema([$id]), $ms, null, false, CompressionMethod::Zstd);
+    $writer = new ParquetWriter(new Schema([$id]), $ms);
+    $writer->compressionMethod = CompressionMethod::Zstd;
     $rg = $writer->CreateRowGroup();
     $rg->WriteColumn(new DataColumn($id, [ 1, null, 2, null, 3 ]));
     $rg->finish();
@@ -353,6 +357,7 @@ final class ParquetWriterTest extends TestBase
     fseek($ms, 0);
 
     $reader = new ParquetReader($ms);
+    $this->assertEquals(CompressionCodec::ZSTD, $reader->getThriftMetadata()->row_groups[0]->columns[0]->meta_data->codec);
     $this->assertEquals(1, $reader->getRowGroupCount());
     $rg = $reader->OpenRowGroupReader(0);
     $this->assertEquals(5, $rg->getRowCount());

@@ -14,6 +14,7 @@ use codename\parquet\data\DataTypeHandlerInterface;
 
 use codename\parquet\format\Encoding;
 use codename\parquet\format\PageType;
+use codename\parquet\format\CompressionCodec;
 use codename\parquet\format\PageHeader;
 use codename\parquet\format\ColumnChunk;
 use codename\parquet\format\SchemaElement;
@@ -712,10 +713,16 @@ class DataColumnReader
         $levelsData = null; // or empty string?
       }
 
+      // A V2 page may leave its values uncompressed even when the column has a codec
+      // (e.g. pyarrow does this when compression would not shrink the page)
+      $codec = $pageHeader->data_page_header_v2->is_compressed === false
+        ? CompressionCodec::UNCOMPRESSED
+        : $this->thriftColumnChunk->meta_data->codec;
+
       // prepend levels data we just read
       return $levelsData . DataStreamFactory::ReadPageData(
         $this->inputStream,
-        $this->thriftColumnChunk->meta_data->codec,
+        $codec,
         $pageHeader->compressed_page_size - $levelsByteLength, $pageHeader->uncompressed_page_size - $levelsByteLength
       );
     } else {

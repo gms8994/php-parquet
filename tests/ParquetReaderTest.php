@@ -7,6 +7,7 @@ use Exception;
 use codename\parquet\ParquetReader;
 use codename\parquet\ParquetWriter;
 use codename\parquet\CompressionMethod;
+use codename\parquet\format\CompressionCodec;
 
 use codename\parquet\data\Schema;
 use codename\parquet\data\DataField;
@@ -383,7 +384,8 @@ final class ParquetReaderTest extends TestBase
     $name = DataField::createFromType('name', 'string');
     $value = DataField::createFromType('value', 'double');
 
-    $writer = new ParquetWriter(new Schema([$id, $name, $value]), $ms, null, false, CompressionMethod::Zstd);
+    $writer = new ParquetWriter(new Schema([$id, $name, $value]), $ms);
+    $writer->compressionMethod = CompressionMethod::Zstd;
     $rg = $writer->CreateRowGroup();
     $rg->WriteColumn(new DataColumn($id, [ 1, 2, 3, 4, 5 ]));
     $rg->WriteColumn(new DataColumn($name, [ 'Alice', 'Bob', 'Charlie', 'David', 'Eve' ]));
@@ -394,6 +396,7 @@ final class ParquetReaderTest extends TestBase
     // Now read it back
     fseek($ms, 0);
     $reader = new ParquetReader($ms);
+    $this->assertEquals(CompressionCodec::ZSTD, $reader->getThriftMetadata()->row_groups[0]->columns[0]->meta_data->codec);
     $columns = $reader->ReadEntireRowGroup();
 
     $this->assertEquals([ 1, 2, 3, 4, 5 ], $columns[0]->getData());
@@ -409,7 +412,8 @@ final class ParquetReaderTest extends TestBase
     $ms = fopen('php://memory', 'r+');
     $id = DataField::createFromType('id', 'integer');
 
-    $writer = new ParquetWriter(new Schema([$id]), $ms, null, false, CompressionMethod::Zstd);
+    $writer = new ParquetWriter(new Schema([$id]), $ms);
+    $writer->compressionMethod = CompressionMethod::Zstd;
 
     // Write first row group
     $rg = $writer->CreateRowGroup();
@@ -431,6 +435,7 @@ final class ParquetReaderTest extends TestBase
     // Read back and verify
     fseek($ms, 0);
     $reader = new ParquetReader($ms);
+    $this->assertEquals(CompressionCodec::ZSTD, $reader->getThriftMetadata()->row_groups[0]->columns[0]->meta_data->codec);
     $this->assertEquals(3, $reader->getRowGroupCount());
 
     $rg = $reader->OpenRowGroupReader(0);

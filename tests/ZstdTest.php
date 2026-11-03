@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace codename\parquet\tests;
 
+use codename\parquet\ParquetReader;
 use codename\parquet\StreamHelper;
 use codename\parquet\ZstdStreamWrapper;
 
@@ -74,5 +75,51 @@ final class ZstdTest extends TestBase
 
     // validate
     $this->assertEquals($stage1, $stage3);
+  }
+
+  /**
+   * Fixtures written by other Parquet implementations (see tests/data/zstd/generate.sh)
+   * @return array
+   */
+  public static function externalZstdFileProvider(): array
+  {
+    return [
+      'duckdb'                => [ 'zstd/duckdb.zstd.parquet' ],
+      'pyarrow'               => [ 'zstd/pyarrow.zstd.parquet' ],
+      'pyarrow data page v2'  => [ 'zstd/pyarrow.datapagev2.zstd.parquet' ],
+    ];
+  }
+
+  /**
+   * Reads zstd files produced by external writers and checks every value
+   * @dataProvider externalZstdFileProvider
+   * @param string $file
+   */
+  public function testReadsZstdFileFromExternalWriter(string $file): void
+  {
+    $reader = new ParquetReader($this->openTestFile($file));
+
+    $this->assertGreaterThan(1, $reader->getRowGroupCount());
+
+    $data = [];
+    for ($g = 0; $g < $reader->getRowGroupCount(); $g++) {
+      foreach ($reader->ReadEntireRowGroup($g) as $column) {
+        $name = $column->getField()->name;
+        $data[$name] = array_merge($data[$name] ?? [], $column->getData());
+      }
+    }
+
+    $n = 5000;
+    $expected = [
+      'id'       => range(0, $n - 1),
+      'half'     => array_map(fn($i) => $i * 0.5, range(0, $n - 1)),
+      'category' => array_map(fn($i) => 'cat_' . ($i % 10), range(0, $n - 1)),
+      'maybe'    => array_map(fn($i) => $i % 7 === 0 ? null : $i, range(0, $n - 1)),
+    ];
+
+    $this->assertSame(array_keys($expected), array_keys($data));
+    foreach ($expected as $name => $values) {
+      $this->assertSame($values, $data[$name], "column '{$name}' in {$file}");
+    }
   }
 }
